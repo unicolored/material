@@ -11,17 +11,15 @@
   height: 300px;
   text-align: center;
 }
-.tab0 {
-  background-color: #E3F2FD;
+.tab0, .tab1, .tab2, .tab3 {
+  background-color: #bbdefb;
 }
-.tab1 {
-  background-color: #E1F5FE;
+
+.md-header {
+  background-color: #1976D2 !important;
 }
-.tab2 {
-  background-color: #E0F7FA;
-}
-.tab3 {
-  background-color: #E0F2F1;
+md-tabs-ink-bar {
+  background-color: #FFFF8D !important;
 }
 
 .title {

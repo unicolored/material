@@ -53,7 +53,7 @@ angular.module('material.components.tabs')
  * </hljs>
  *
  */
-function MdTabDirective($mdInkRipple, $compile, $mdAria, $mdUtil, $mdConstant) {
+function MdTabDirective($mdInkRipple, $compile, $mdUtil, $mdConstant, $rootScope) {
   return {
     restrict: 'E',
     require: ['mdTab', '^mdTabs'],
@@ -87,6 +87,11 @@ function MdTabDirective($mdInkRipple, $compile, $mdAria, $mdUtil, $mdConstant) {
     var tabContent = element.contents().remove();
 
     return function postLink(scope, element, attr, ctrls) {
+
+      scope.$watch(
+          function () { return element.html(); },
+          function () { $rootScope.$broadcast('$mdTabsChanged'); }
+      );
 
       var tabItemCtrl = ctrls[0]; // Controller for THIS tabItemCtrl
       var tabsCtrl = ctrls[1]; // Controller for ALL tabs
@@ -175,7 +180,7 @@ function MdTabDirective($mdInkRipple, $compile, $mdAria, $mdUtil, $mdConstant) {
         scope.$on('$destroy', unwatch);
 
         function activeWatchAction(isActive) {
-          var isSelected = tabsCtrl.selected() === tabItemCtrl;
+          var isSelected = tabsCtrl.getSelectedItem() === tabItemCtrl;
 
           if (isActive && !isSelected) {
             tabsCtrl.select(tabItemCtrl);
@@ -192,7 +197,7 @@ function MdTabDirective($mdInkRipple, $compile, $mdAria, $mdUtil, $mdConstant) {
           element.attr('aria-disabled', isDisabled);
 
           // Auto select `next` tab when disabled
-          var isSelected = (tabsCtrl.selected() === tabItemCtrl);
+          var isSelected = (tabsCtrl.getSelectedItem() === tabItemCtrl);
           if (isSelected && isDisabled) {
             tabsCtrl.select(tabsCtrl.next() || tabsCtrl.previous());
           }
