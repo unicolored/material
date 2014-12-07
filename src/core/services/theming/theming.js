@@ -343,8 +343,14 @@ function generateThemes($MD_THEME_CSS) {
     var defaultContrast = palette.contrastDefaultColor;
     var lightColors = palette.contrastLightColors || [];
     var darkColors = palette.contrastDarkColors || [];
+
+    // TODO allow user to configure contrast color
     var darkColor = 'rgba(0,0,0,0.87)';
     var lightColor = 'white';
+
+    // Sass provides these colors as space-separated lists
+    if (typeof lightColors === 'string') lightColors = lightColors.split(' ');
+    if (typeof darkColors === 'string') darkColors = darkColors.split(' ');
 
     // Cleanup after ourselves
     delete palette.contrastDefaultColor;
