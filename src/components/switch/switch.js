@@ -84,7 +84,7 @@ function MdSwitch(mdCheckboxDirective, $mdTheming, $mdUtil, $document, $mdConsta
       attr.mdNoClick = true;
       checkboxLink(scope, element, attr, ngModel);
 
-      $mdUtil.attachDragBehavior(scope, switchContainer);
+      $mdUtil.attachDrag(scope, switchContainer);
 
       // These events are triggered by setup drag
       switchContainer.on('$md.dragstart', onDragStart)

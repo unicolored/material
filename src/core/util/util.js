@@ -12,10 +12,15 @@ var nextUniqueId = ['0','0','0'];
 angular.module('material.core')
 .factory('$mdUtil', function($cacheFactory, $document) {
   var Util;
+  var START_EVENTS = 'mousedown touchstart pointerdown';
+  var MOVE_EVENTS = 'mousemove touchmove pointermove';
+  var END_EVENTS = 'mouseup mouseleave touchend touchcancel pointerup pointercancel';
+
   return Util = {
     now: window.performance ? angular.bind(window.performance, window.performance.now) : Date.now,
 
-    attachDragBehavior: attachDragBehavior,
+    attachDrag: attachDrag,
+    attachTap: attachTap,
 
     /**
      * Publish the iterator facade to easily support iteration and accessors
@@ -367,15 +372,64 @@ angular.module('material.core')
     }
   }
 
-  function attachDragBehavior(scope, element, options) {
+  function attachTap(scope, element, options) {
+    var pointerDown;
+    var tap, lastTap;
+
+    element.on(START_EVENTS, onStart);
+    $document.on(END_EVENTS, onEnd);
+
+    scope.$on('$destroy', cleanup);
+
+    return cleanup;
+
+    function cleanup() {
+      if (cleanup.called) return;
+      cleanup.called = true;
+      element.off(START_EVENTS, onStart);
+      $document.off(END_EVENTS, onEnd);
+    }
+
+    function eventTypeMatches(ev) {
+      return ev.type.charAt(0) === (tap && tap.pointerType);
+    }
+    function position(ev) {
+      return (ev.touches && ev.touches[0] && ev.touches[0].pageX) ||
+        (ev.changedTouches && ev.changedTouches[0] && ev.changedTouches[0]).pageX ||
+        ev.pageX;
+    }
+
+    function onStart(ev) {
+      if (pointerDown) return;
+      var pointerType = ev.type.charAt(0);
+      var now = Util.now();
+
+      // iOS & old android bug: after a touch event, iOS sends a click event 350 ms later.
+      // Don't allow a different pointerType than the previous if <400ms have passed.
+      if (lastTap && lastTap.pointerType !== pointerType &&
+          (now - lastTap.endTime < 400)) {
+        return;
+      }
+
+      tap = {
+        // Restrict this tap to whatever started it: if a mousedown started the tap,
+        // don't let anything but mouse events continue it.
+        pointerType: eventType,
+        startX: getPosition(ev),
+        startTime: now
+      };
+
+      pointerDown = true;
+    }
+
+  }
+
+  function attachDrag(scope, element, options) {
     // The state of the current drag & previous drag
     var drag;
     var previousDrag;
     // Whether the pointer is currently down on this element.
     var pointerIsDown;
-    var START_EVENTS = 'mousedown touchstart pointerdown';
-    var MOVE_EVENTS = 'mousemove touchmove pointermove';
-    var END_EVENTS = 'mouseup mouseleave touchend touchcancel pointerup pointercancel';
 
     // Listen to move and end events on document. End events especially could have bubbled up
     // from the child.
@@ -417,6 +471,7 @@ angular.module('material.core')
         startX: getPosition(ev),
         startTime: now
       };
+      updateDragState(ev);
 
       element.one('$md.dragstart', function(ev) {
         // Allow user to cancel by preventing default
@@ -428,7 +483,6 @@ angular.module('material.core')
       if (!drag || !isProperEventType(ev, drag)) return;
 
       if (drag.pointerType === 't' || drag.pointerType === 'p') {
-        // No scrolling for touch/pointer events
         ev.preventDefault();
       }
       updateDragState(ev);
@@ -449,6 +503,7 @@ angular.module('material.core')
 
     function updateDragState(ev) {
       var x = getPosition(ev);
+      drag.x = x;
       drag.distance = drag.startX - x;
       drag.direction = drag.distance > 0 ? 'left' : (drag.distance < 0 ? 'right' : '');
       drag.duration = drag.startTime - Util.now();

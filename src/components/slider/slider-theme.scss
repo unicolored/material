@@ -9,7 +9,7 @@ $slider-focus-ring-color: $foreground-quarternary-color !default;
 $slider-disabled-color: map-get($foreground-color-palette, '400') !default;
 
 md-slider.md-#{$theme-name}-theme {
-  .md-track {
+  .md-track-container {
     background-color: $slider-background-color;
   }
 

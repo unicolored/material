@@ -1,4 +1,3 @@
-
 describe('md-slider', function() {
 
   function simulateEventAt( centerX, eventType ) {
@@ -19,7 +18,6 @@ describe('md-slider', function() {
   it('should set model on press', inject(function($compile, $rootScope, $timeout) {
     var slider = $compile('<md-slider ng-model="value" min="0" max="100">')($rootScope);
     $rootScope.$apply('value = 50');
-    var sliderCtrl = slider.controller('mdSlider');
 
     spyOn(slider[0].querySelector('.md-track-container'), 'getBoundingClientRect').andReturn({
       width: 100,
@@ -27,36 +25,15 @@ describe('md-slider', function() {
       right: 0
     });
 
-    sliderCtrl._onInput( simulateEventAt( 30, Hammer.INPUT_START ));
-    $timeout.flush();
+    slider.triggerHandler('$md.dragstart', { x: 30 });
     expect($rootScope.value).toBe(30);
 
     //When going past max, it should clamp to max
-    sliderCtrl._onPan( simulateEventAt( 500 ));
-    $timeout.flush();
+    slider.triggerHandler('$md.drag', { x: 150 });
     expect($rootScope.value).toBe(100);
 
-    sliderCtrl._onPan( simulateEventAt( 50 ));
-    $timeout.flush();
+    slider.triggerHandler('$md.drag', { x: 50 });
     expect($rootScope.value).toBe(50);
-  }));
-
-  it('should set model on drag', inject(function($compile, $rootScope, $timeout) {
-    var slider = $compile('<md-slider ng-model="value" min="0" max="100" md-discrete>')($rootScope);
-    $rootScope.$apply('value = 50');
-    var sliderCtrl = slider.controller('mdSlider');
-
-    spyOn(slider[0].querySelector('.md-track-container'), 'getBoundingClientRect').andReturn({
-      width: 100,
-      left: 0,
-      right: 0
-    });
-
-    sliderCtrl._onInput( simulateEventAt( 30, Hammer.INPUT_START ));
-    $timeout.flush();
-
-    sliderCtrl._onPan( simulateEventAt( 80 ));
-    expect(slider[0].querySelector('.md-thumb-text').textContent).toBe('80');
   }));
 
   it('should increment model on right arrow', inject(function($compile, $rootScope, $timeout, $mdConstant) {
@@ -120,17 +97,14 @@ describe('md-slider', function() {
   }));
 
   it('should update the thumb text', inject(function($compile, $rootScope, $timeout, $mdConstant) {
-    var slider = $compile('<md-slider ng-model="value" min="0" max="100">')($rootScope);
-    var sliderCtrl = slider.controller('mdSlider');
+    var slider = $compile('<md-slider ng-model="value" md-discrete min="0" max="100" step="1">')($rootScope);
 
+    $rootScope.$apply('value = 30');
     spyOn(slider[0].querySelector('.md-track-container'), 'getBoundingClientRect').andReturn({
       width: 100,
       left: 0,
       right: 0
     });
-
-    sliderCtrl._onInput( simulateEventAt( 30, Hammer.INPUT_START ));
-    $timeout.flush();
     expect(slider[0].querySelector('.md-thumb-text').textContent).toBe('30');
 
     slider.triggerHandler({
@@ -140,9 +114,11 @@ describe('md-slider', function() {
     $timeout.flush();
     expect(slider[0].querySelector('.md-thumb-text').textContent).toBe('29');
 
-    sliderCtrl._onPan( simulateEventAt( 30 ));
-    $timeout.flush();
+    slider.triggerHandler('$md.dragstart', { x: 30 });
     expect(slider[0].querySelector('.md-thumb-text').textContent).toBe('30');
+
+    slider.triggerHandler('$md.drag', { x: 31 });
+    expect(slider[0].querySelector('.md-thumb-text').textContent).toBe('31');
   }));
 
   it('should update the thumb text with the model value when using ng-change', inject(function($compile, $rootScope, $timeout) {
@@ -161,7 +137,7 @@ describe('md-slider', function() {
       right: 0
     });
 
-    sliderCtrl._onInput( simulateEventAt( 30, Hammer.INPUT_START ));
+    slider.triggerHandler('$md.dragstart', { x : 30 });
     $timeout.flush();
     expect($scope.value).toBe(50);
     expect(slider[0].querySelector('.md-thumb-text').textContent).toBe('50');
