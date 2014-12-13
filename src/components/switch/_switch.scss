@@ -18,6 +18,7 @@ md-switch {
 
   .md-text {
     border: 1px solid transparent;
+    cursor: pointer;
   }
 
   .md-bar {
@@ -64,12 +65,19 @@ md-switch {
     }
   }
 
+  &[disabled] {
+    .md-text {
+      cursor: auto;
+    }
+  }
+
   &.transition {
     .md-bar,
     .md-thumb-container,
     .md-thumb {
-      transition: $swift-ease-in-out;
+      transition: $swift-ease-in;
       transition-property: transform, background-color;
+      transition-duration: 0.25s;
     }
     .md-bar,
     .md-thumb {

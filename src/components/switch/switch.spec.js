@@ -37,65 +37,31 @@ describe('<md-switch>', function() {
     expect(switches.eq(1).attr('role')).toEqual('checkbox');
   }));
 
-  it('should change on panstart/panend if no movement happened', inject(function($compile, $rootScope) {
-    var element = $compile('<md-switch ng-model="banana"></md-switch>')($rootScope);
-    var switchContainer = angular.element(element[0].querySelector('.md-container'));
-
-    $rootScope.$apply('banana = false');
-
-    expect($rootScope.banana).toBe(false);
-    expect(element.hasClass(CHECKED_CSS)).toBe(false);
-
-    switchContainer.triggerHandler('$md.dragstart', {});
-    switchContainer.triggerHandler('$md.dragend', {distance: 1});
-
-    expect($rootScope.banana).toBe(true);
-    expect(element.hasClass(CHECKED_CSS)).toBe(true);
-
-    switchContainer.triggerHandler('$md.dragstart', {});
-    switchContainer.triggerHandler('$md.dragend', {distance: 5});
-
-    expect($rootScope.banana).toBe(true);
-    expect(element.hasClass(CHECKED_CSS)).toBe(true);
-
-    switchContainer.triggerHandler('$md.dragstart', {});
-    switchContainer.triggerHandler('$md.dragend', {distance: -1});
-
-    expect($rootScope.banana).toBe(false);
-    expect(element.hasClass(CHECKED_CSS)).toBe(false);
-  }));
-
-  it('should check on panend if translate > 50%', inject(function($compile, $rootScope) {
+  it('should change on dragend if translate > 50%', inject(function($compile, $rootScope) {
     var element = $compile('<md-switch ng-model="banana"></md-switch>')($rootScope);
     var switchContainer = angular.element(element[0].querySelector('.md-container'));
     var drag;
 
-    drag = { distance: -55 };
-    switchContainer.triggerHandler('$md.dragstart', {});
-    drag.width = 100;
-    switchContainer.triggerHandler('$md.drag', drag);
-    switchContainer.triggerHandler('$md.dragend', drag);
-
+    // 0 -> 0.6 success (change of 60%)
+    switchContainer.triggerHandler('$md.dragend', { translate: 0.6 });
     expect($rootScope.banana).toBe(true);
     expect(element.hasClass(CHECKED_CSS)).toBe(true);
 
-    drag = { distance: 45 };
-    switchContainer.triggerHandler('$md.dragstart', {});
-    drag.width = 100;
-    switchContainer.triggerHandler('$md.drag', drag);
-    switchContainer.triggerHandler('$md.dragend', drag);
-
+    // 1 -> 0.7 failure (change of 30%)
+    switchContainer.triggerHandler('$md.dragend', { translate: 0.7 });
     expect($rootScope.banana).toBe(true);
     expect(element.hasClass(CHECKED_CSS)).toBe(true);
 
-    drag = { distance: 85 };
-    switchContainer.triggerHandler('$md.dragstart', {});
-    drag.width = 100;
-    switchContainer.triggerHandler('$md.drag', drag);
-    switchContainer.triggerHandler('$md.dragend', drag);
-
+    // 1 -> 0.45 success (change of 55%)
+    switchContainer.triggerHandler('$md.dragend', { translate: 0.45 });
     expect($rootScope.banana).toBe(false);
     expect(element.hasClass(CHECKED_CSS)).toBe(false);
+
+    // 0 -> 0.2 failure (change of 20%)
+    switchContainer.triggerHandler('$md.dragend', { translate: 0.2 });
+    expect($rootScope.banana).toBe(false);
+    expect(element.hasClass(CHECKED_CSS)).toBe(false);
+
   }));
 
 });

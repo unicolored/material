@@ -46,7 +46,7 @@ angular.module('material.components.switch', [
  *
  * </hljs>
  */
-function MdSwitch(mdCheckboxDirective, $mdTheming, $mdUtil, $document, $mdConstant, $parse, $$rAF) {
+function MdSwitch(mdCheckboxDirective, $mdTheming, $mdGesture, $mdUtil, $document, $mdConstant, $parse, $$rAF) {
   var checkboxDirective = mdCheckboxDirective[0];
 
   return {
@@ -79,15 +79,13 @@ function MdSwitch(mdCheckboxDirective, $mdTheming, $mdUtil, $document, $mdConsta
         element.addClass('transition');
       });
 
-      // Tell the checkbox we don't want a click listener.
-      // Our drag listener tells us everything, using more granular events.
-      attr.mdNoClick = true;
       checkboxLink(scope, element, attr, ngModel);
 
-      $mdUtil.attachDrag(scope, switchContainer);
+      $mdGesture.attach(switchContainer, 'drag');
 
       // These events are triggered by setup drag
-      switchContainer.on('$md.dragstart', onDragStart)
+      switchContainer
+        .on('$md.dragstart', onDragStart)
         .on('$md.drag', onDrag)
         .on('$md.dragend', onDragEnd);
 
@@ -99,7 +97,7 @@ function MdSwitch(mdCheckboxDirective, $mdTheming, $mdUtil, $document, $mdConsta
         element.removeClass('transition');
       }
       function onDrag(ev, drag) {
-        var percent = drag.distance / drag.width;
+        var percent = drag.distanceX / drag.width;
 
         //if checked, start from right. else, start from left
         var translate = ngModel.$viewValue ?  1 - percent : -percent;
@@ -117,15 +115,23 @@ function MdSwitch(mdCheckboxDirective, $mdTheming, $mdUtil, $document, $mdConsta
 
         // We changed if there is no distance (this is a click a click),
         // or if the drag distance is >50% of the total.
-        var isChanged = Math.abs(drag.distance || 0) < 2 ||
-          (ngModel.$viewValue ? drag.translate < 0.5 : drag.translate > 0.5);
+        var isChanged = ngModel.$viewValue ? drag.translate < 0.5 : drag.translate > 0.5;
         if (isChanged) {
-          scope.$apply(function() {
-            ngModel.$setViewValue(!ngModel.$viewValue);
-            ngModel.$render();
-          });
+          applyModelValue(!ngModel.$viewValue);
         }
       }
+      function onClick(ev, pointer) {
+        if (disabledGetter(scope)) return false;
+        applyModelValue(!ngModel.$viewValue);
+      }
+
+      function applyModelValue(newValue) {
+        scope.$apply(function() {
+          ngModel.$setViewValue(newValue);
+          ngModel.$render();
+        });
+      }
+
     };
   }
 

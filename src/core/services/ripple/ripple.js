@@ -21,7 +21,7 @@ function InkRippleDirective($mdInkRipple) {
   };
 }
 
-function InkRippleService($window, $timeout) {
+function InkRippleService($window, $timeout, $mdGesture) {
 
   return {
     attachButtonBehavior: attachButtonBehavior,
@@ -79,10 +79,13 @@ function InkRippleService($window, $timeout) {
         isActive = false,
         isHeld = false,
         node = element[0],
-        hammertime = new Hammer(node),
         color = parseColor(element.attr('md-ink-ripple')) || parseColor($window.getComputedStyle(options.colorElement[0]).color || 'rgb(0, 0, 0)');
 
-    options.mousedown && hammertime.on('hammer.input', onInput);
+    if (options.mousedown) {
+      $mdGesture.attach(element, 'press');
+      element.on('$md.pressdown', onTouchStart)
+        .on('$md.pressup', onTouchEnd);
+    }
 
     controller.createRipple = createRipple;
 
@@ -100,7 +103,9 @@ function InkRippleService($window, $timeout) {
 
     // Publish self-detach method if desired...
     return function detach() {
-      hammertime.destroy();
+      $mdGesture.detach(element, 'press');
+      element.off('$md.pressdown', onTouchStart)
+        .off('$md.pressup', onTouchEnd);
       rippleContainer && rippleContainer.remove();
     };
 
@@ -139,7 +144,7 @@ function InkRippleService($window, $timeout) {
        * @returns {string} rgba color with 0.1 alpha
        */
       function rgbToRGBA(color) {
-        return color.replace(')', ', 0.1)').replace('(', 'a(')
+        return color.replace(')', ', 0.1)').replace('(', 'a(');
       }
 
     }
@@ -314,10 +319,11 @@ function InkRippleService($window, $timeout) {
        * @returns {angular.element} ripple container element
        */
       function getRippleContainer() {
-        if (rippleContainer) return rippleContainer;
-        var container = rippleContainer = angular.element('<div class="md-ripple-container">');
-        element.append(container);
-        return container;
+        if (!rippleContainer) {
+          rippleContainer = angular.element('<div class="md-ripple-container">');
+          element.append(rippleContainer);
+        }
+        return rippleContainer;
       }
     }
 
@@ -326,19 +332,9 @@ function InkRippleService($window, $timeout) {
      *
      * @param {event} event fired by hammer.js
      */
-    function onInput(ev) {
-      var ripple, index;
-      if (ev.eventType === Hammer.INPUT_START && ev.isFirst && isRippleAllowed()) {
-        ripple = createRipple(ev.center.x, ev.center.y);
-        isHeld = true;
-      } else if (ev.eventType === Hammer.INPUT_END && ev.isFinal) {
-        isHeld = false;
-        index = ripples.length - 1;
-        ripple = ripples[index];
-        $timeout(function () {
-          updateElement(ripple);
-        }, 0, false);
-      }
+    function onTouchStart(ev, touch) {
+      if (!isRippleAllowed()) return;
+      var ripple = createRipple(touch.x, touch.y);
 
       /**
        * Determines if the ripple is allowed
@@ -354,6 +350,15 @@ function InkRippleService($window, $timeout) {
           !(grandparent && grandparent.hasAttribute('disabled')) &&
           !(ancestor && ancestor.hasAttribute('disabled'));
       }
+    }
+
+    function onTouchEnd(ev, touch) {
+      isHeld = false;
+      var index = ripples.length - 1;
+      var ripple = ripples[index];
+      $timeout(function () {
+        updateElement(ripple);
+      }, 0, false);
     }
   }
 }

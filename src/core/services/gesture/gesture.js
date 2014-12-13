@@ -1,168 +1,320 @@
 (function() {
+'use strict';
+
+var START_EVENTS = 'mousedown touchstart pointerdown';
+var MOVE_EVENTS = 'mousemove touchmove pointermove';
+var END_EVENTS = 'mouseup mouseleave touchend touchcancel pointerup pointercancel';
+
+angular.element(document)
+  .on(START_EVENTS, gestureStart)
+  .on(MOVE_EVENTS, gestureMove)
+  .on(END_EVENTS, gestureEnd)
+  .on('$$mdGestureReset', function() {
+    lastPointer = pointer = null;
+  });
+
+// The state of the current and previous 'pointer' (mouse/touch)
+var pointer, lastPointer;
+
+function runCallbacks(callbackType, ev) {
+  var pointerCopy = angular.extend({
+    preventDefault: function() { this.defaultPrevented = true; },
+    isDefaultPrevented: function() { return this.defaultPrevented === true; },
+    stopImmediatePropagation: function() { this.immediatePropagationStopped = true; },
+    isImmediatePropagationStopped: function() { return this.immediatePropagationStopped === true; },
+    stopPropagation: function() { this.propagationStopped = true; }
+  }, pointer);
+  var targets = pointer._targets;
+
+  for (var i = 0, target; target = targets[i]; i++) {
+    pointerCopy.target = target.node;
+    for (var j = 0, gesture; gesture = target.gestures[j]; j++) {
+      gesture[callbackType] && gesture[callbackType](target.element, ev, pointerCopy);
+      if (pointerCopy.immediatePropagationStopped) return;
+    }
+    console.log(pointerCopy.propagationStopped);
+    if (pointerCopy.propagationStopped) return;
+  }
+}
+
+function gestureStart(ev) {
+  // If we're already touched down, abort
+  if (pointer) return;
+
+  var now = +Date.now();
+  // iOS & old android bug: after a touch event, a click event is sent 350 ms later.
+  // If <400ms have passed, don't allow an event of a different type than the previous event
+  if (lastPointer && !typesMatch(ev, lastPointer) && (now - lastPointer.endTime < 400)) {
+    return;
+  }
+
+  pointer = makeStartPointer(ev);
+  pointer._targets = [];
+
+  var currentNode = ev.target;
+  while (currentNode && currentNode !== document) {
+    var gestureData = currentNode.$mdGesture;
+    if (gestureData) {
+      pointer._targets.push({
+        node: currentNode,
+        element: angular.element(currentNode),
+        gestures: gestureData.gestures
+      });
+    }
+    currentNode = currentNode.parentNode;
+  }
+
+  runCallbacks('onStart', ev);
+}
+
+function gestureMove(ev) {
+  if (!pointer || !typesMatch(ev, pointer)) return;
+
+  updatePointerState(ev, pointer);
+
+  runCallbacks('onMove', ev);
+}
+
+function gestureEnd(ev) {
+  if (!pointer || !typesMatch(ev, pointer)) return;
+
+  updatePointerState(ev, pointer);
+  pointer.endTime = +Date.now();
+
+  runCallbacks('onEnd', ev);
+
+  lastPointer = pointer;
+  pointer = null;
+}
+
+/******** Helpers *********/
+function typesMatch(ev, pointer) {
+  return ev && pointer && ev.type.charAt(0) === pointer.type;
+}
+
+function getEventPoint(ev) {
+  ev = ev.originalEvent || ev; // support jQuery events
+  return (ev.touches && ev.touches[0]) ||
+    (ev.changedTouches && ev.changedTouches[0]) ||
+    ev;
+}
+
+function updatePointerState(ev, pointer) {
+  var point = getEventPoint(ev);
+  var x = pointer.x = point.pageX;
+  var y = pointer.y = point.pageY;
+  pointer.distanceX = pointer.startX - x;
+  pointer.distanceY = pointer.startY - y;
+  pointer.direction = pointer.distance > 0 ? 'left' : (pointer.distance < 0 ? 'right' : '');
+  pointer.duration = pointer.startTime - +Date.now();
+  pointer.velocityX = pointer.distanceX / pointer.time;
+  pointer.velocityY = pointer.distanceY / pointer.time;
+}
+
+
+function makeStartPointer(ev, data) {
+  var point = getEventPoint(ev);
+  var startPointer = angular.extend({
+    // Restrict this tap to whatever started it: if a mousedown started the tap,
+    // don't let anything but mouse events continue it.
+    type: ev.type.charAt(0),
+    startX: point.pageX,
+    startY: point.pageY,
+    startTime: +Date.now()
+  }, data);
+  startPointer.x = startPointer.startX;
+  startPointer.y = startPointer.startY;
+  return startPointer;
+}
 
 angular.module('material.core')
+.provider('$mdGesture', function() {
+  var GESTURES = {};
+  var provider;
 
-.factory('$mdGesture', function($document, $mdUtil) {
-  var START_EVENTS = 'mousedown touchstart pointerdown';
-  var MOVE_EVENTS = 'mousemove touchmove pointermove';
-  var END_EVENTS = 'mouseup mouseleave touchend touchcancel pointerup pointercancel';
+  addGesture('click', {
+    options: {
+      maxDistance: 6,
+    },
+    onEnd: function(element, ev, pointer) {
+      if (Math.abs(pointer.distanceX) < this.options.maxDistance &&
+          Math.abs(pointer.distanceY) < this.options.maxDistance) {
+        element.triggerHandler('$md.click', pointer);
+      }
+    }
+  });
 
-  // The state of the current and previous 'pointer' (mouse/touch)
-  var pointer, lastPointer;
+  addGesture('press', {
+    onStart: function(element, ev, pointer) {
+      element.triggerHandler('$md.pressdown', pointer);
+    },
+    onEnd: function(element, ev, pointer) {
+      element.triggerHandler('$md.pressup', pointer);
+    }
+  });
 
-  $document.on(MOVE_EVENTS, gestureMove)
-    .on(END_EVENTS, gestureEnd);
+  addGesture('hold', {
+    options: {
+      minTime: 500,
+      maxDistance: 6,
+    },
+    resetTimeout: function(element, ev, pointer) {
+      cancelTimeout(this._holdTimeout);
 
-  return {
-    makeTappable: function(element) { return listen(element, 'tap'); },
-    makeDraggable: function(element) { return listen(element, 'drag'); },
-    makeSwipeable: function(element) { return listen(element, 'swipe'); }
+      this._holdPos = {x: pointer.x, y: pointer.y};
+      if (!this._holdTriggered) {
+        var self = this;
+        this._holdTimeout = setTimeout(function() {
+          element.triggerHandler('$md.hold', pointer);
+          self.holdTriggered = true;
+        }, this.options.minTime);
+      }
+    },
+    onStart: function(element, ev, pointer) {
+      this.resetTimeout(element, ev, pointer);
+    },
+    onMove: function(element, ev, pointer) {
+      if (Math.abs(this._holdPos.x - pointer.x) > this.options.maxDistance ||
+          Math.abs(this._holdPos.y - pointer.y) > this.options.maxDistance) {
+        this.resetTimeout(element, ev, pointer);
+      }
+    },
+    onEnd: function(element, ev, pointer) {
+      cancelTimeout(this._holdTimeout);
+    }
+  });
+
+  addGesture('drag', {
+    options: {
+      minDistance: 6,
+    },
+    onMove: function(element, ev, pointer) {
+      ev.preventDefault();
+      if (!this._drag) {
+        if (Math.abs(pointer.distanceX) > this.options.minDistance) {
+          // Create a new pointer, starting at this point where the drag started.
+          this._drag = makeStartPointer(ev);
+          updatePointerState(ev, this._drag);
+          element.triggerHandler('$md.dragstart', this._drag);
+        }
+      } else {
+        updatePointerState(ev, this._drag);
+        element.triggerHandler('$md.drag', this._drag);
+      }
+    },
+    onEnd: function(element, ev, pointer) {
+      if (this._drag) {
+        updatePointerState(ev, this._drag);
+        element.triggerHandler('$md.dragend', this._drag);
+        this._drag = null;
+      }
+    }
+  });
+
+  addGesture('swipe', {
+    options: {
+      minVelocity: 0.65,
+      minDistance: 10,
+    },
+    onEnd: function(element, ev, pointer) {
+      if (Math.abs(pointer.velocityX) > this.options.minVelocity &&
+          Math.abs(pointer.distanceX) > this.options.minDistance) {
+        element.triggerHandler(
+          pointer.direction == 'left' ? '$md.swipeleft' : '$md.swiperight', pointer
+        );
+      }
+    }
+  });
+
+  return provider = {
+    addGesture: addGesture,
+    $get: GestureFactory
   };
 
+  function addGesture(name, data) {
+    GESTURES[name] = angular.extend({
+      options: {},
+      name: name,
+      onStart: angular.noop,
+      onMove: angular.noop,
+      onEnd: angular.noop
+    }, data);
+    return provider;
+  }
 
-  /****************
-   * Private Methods
-   ****************/
+  function GestureFactory($mdUtil, $rootScope, $document, $rootElement) {
 
-  function listen(element, behavior) {
-    var gestureData = element.data('$mdGestureData');
-    if (gestureData) {
-      gestureData.behaviors[behavior] = true;
-    } else {
-      element.data('$mdGestureData', gestureData = {
-        behaviors: {},
-        onStart: onStart,
-        onDestroy: onDestroy
-      });
-      gestureData.behaviors[behavior] = true;
-
-      element
-        .on(START_EVENTS, onStart)
-        .on('$destroy', onDestroy);
-    }
-
-    return function stopListening() {
-      delete gestureData.behaviors[behavior];
-      if (Object.keys(gestureData.behaviors).length === 0) {
-        cleanupGestureData(element);
+    return {
+      attach: function(element, names, options) {
+        (names || '').split(' ').forEach(function(name) {
+          attach(element, name, options);
+        });
+      },
+      detach: function(element, names) {
+        (names || '').split(' ').forEach(function(name) {
+          detach(element, name);
+        });
       }
     };
 
-    function onDestroy() {
-      cleanupGestureData(element);
-    }
-    function onStart(ev) {
-      gestureStart(ev, element);
-    }
-
-  }
-
-  function gestureStart(ev, element) {
-    // If we're already touching, abort
-    if (pointer) return;
-
-    var now = $mdUtil.now();
-
-    // iOS & old android bug: after a touch event, iOS sends a click event 350 ms later.
-    // Don't allow a different type than the previous if <400ms have passed.
-    if (typesMatch(ev, lastPointer) && (now - lastPointer.endTime < 400)) {
-      return;
-    }
-
-    pointer = {
-      // Restrict this tap to whatever started it: if a mousedown started the tap,
-      // don't let anything but mouse events continue it.
-      type: ev.type.charAt(0),
-      startX: getEventPos(ev, 'pageX'),
-      startY: getEventPos(ev, 'pageY'),
-      startTime: $mdUtil.now(),
-      element: element,
-      behaviors: element.data('$mdGestureData').behaviors
-    };
-    pointer.x = pointer.startX;
-    pointer.y = pointer.startY;
-    
-    updatePointerState(ev, pointer);
-
-    if (pointer.behaviors.drag) {
-      pointer.element.triggerHandler('$mdGesture.dragstart', pointer);
-    }
-  }
-
-  function gestureMove(ev) {
-    if (!typesMatch(ev, pointer)) return;
-
-    updatePointerState(ev, pointer);
-
-    if (pointer.behaviors.drag) {
-      // If we're listening to drag events, don't allow touchmove to scroll
-      if (pointer.type === 't' || pointer.type === 'p') {
-        ev.preventDefault();
+    function attach(element, gestureName, options) {
+      var node = element[0];
+      var gesture = GESTURES[ (gestureName || '').toLowerCase() ];
+      if (!gesture) {
+        throw new Error(
+          "Attempted to attach invalid gesture '%1'. Available gestures: %2"
+            .replace('%1', gestureName)
+            .replace('%2', Object.keys(GESTURES).join(', '))
+        );
       }
-      pointer.element.triggerHandler('$mdGesture.drag', pointer);
-    }
-  }
 
-  function gestureEnd(ev) {
-    if (!typesMatch(ev, pointer)) return;
+      var gestureData = node.$mdGesture;
+      if (!gestureData) {
+        node.$mdGesture = gestureData = {
+          gestures: [],
+          onDestroy: onDestroy,
+        };
+        element.on('$destroy', onDestroy);
+      }
+      
+      // Don't attach a gesture twice
+      for (var i = 0, ii = gestureData.gestures.length; i < ii; i++) {
+        if (gestureData.gestures[i].name === gesture.name) return;
+      }
 
-    updatePointerState(ev, pointer);
-    pointer.endTime = $mdUtil.now();
+      var newGesture = angular.extend({}, gesture);
+      angular.extend(newGesture.options, options || {});
+      gestureData.gestures.push(newGesture);
 
-    if (pointer.behaviors.tap && Math.abs(pointer.distanceX) < 5 &&
-        Math.abs(pointer.distanceY) < 5) {
-      pointer.element.triggerHandler('$mdGesture.tap', pointer);
-    }
-    if (pointer.behaviors.drag) {
-      pointer.element.triggerHandler('$mdGesture.dragend', pointer);
-    }
-    if (pointer.behaviors.swipe && Math.abs(pointer.velocityX) > 0.65 &&
-        Math.abs(pointer.distance) > 10) {
-      var type = pointer.direction == 'left' ? '$mdGesture.swipeleft' : '$mdGesture.swiperight';
-      pointer.element.triggerHandler(type, pointer);
-    }
-
-    lastPointer = pointer;
-    pointer = null;
-  }
-
-
-  /******** Helpers *********/
-  function typesMatch(ev, pointer) {
-    return ev && pointer && ev.type.charAt(0) === (pointer && pointer.type);
-  }
-
-  function getEventPos(ev, property) {
-    ev = ev.originalEvent || ev; // support jQuery events
-    var pos = (ev.touches && ev.touches[0]) ||
-      (ev.changedTouches && ev.changedTouches[0]) ||
-      ev;
-    return pos[property];
-  }
-
-  function updatePointerState(ev, pointer) {
-    var x = pointer.x = getEventPos(ev, 'pageX');
-    var y = pointer.y = getEventPos(ev, 'pageY');
-    pointer.distanceX = pointer.startX - x;
-    pointer.distanceY = pointer.startY - y;
-    pointer.direction = pointer.distance > 0 ? 'left' : (pointer.distance < 0 ? 'right' : '');
-    pointer.duration = pointer.startTime - Util.now();
-    pointer.velocityX = pointer.distanceX / pointer.time;
-    pointer.velocityY = pointer.distanceY / pointer.time;
-  }
-
-  function cleanupGestureData(element) {
-    var gestureData = element.data('$mdGestureData');
-    if (gestureData) {
-      element
-        .off(START_EVENTS, gestureData.onStart)
-        .off('$destroy', gestureData.onDestroy)
-        .removeData('$mdGestureData');
-
-      if (pointer.element[0] === element[0]) {
-        pointer = null;
+      function onDestroy() {
+        destroyGestureData(element);
       }
     }
+
+    function detach(element, gestureName) {
+      var node = element[0];
+      var gestureData = node.$mdGesture;
+      if (gestureData) {
+        if (!gestureName) {
+          destroyGestureData(element);
+        } else {
+          delete gestureData.gestures[gestureName];
+          if (Object.keys(gestureData.gestures).length === 0) {
+            destroyGestureData(element);
+          }
+        }
+      }
+    }
+
+    function destroyGestureData(element) {
+      var node = element[0];
+      var gestureData = node.$mdGesture;
+      if (gestureData) {
+        element.off('$destroy', gestureData.onDestroy);
+        delete element[0].$mdGesture;
+      }
+    }
+
   }
 
 });

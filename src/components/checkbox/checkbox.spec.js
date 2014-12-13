@@ -61,12 +61,12 @@ describe('mdCheckbox', function() {
 
     $rootScope.$apply('blue = false');
 
-    checkbox.triggerHandler('click');
+    checkbox.triggerHandler('$md.click');
     expect($rootScope.blue).toBe(false);
 
     $rootScope.$apply('isDisabled = false');
 
-    checkbox.triggerHandler('click');
+    checkbox.triggerHandler('$md.click');
     expect($rootScope.blue).toBe(true);
 
 
@@ -105,10 +105,10 @@ describe('mdCheckbox', function() {
     it('should support type="checkbox" with non-standard capitalization', function() {
       compileInput('<md-checkbox ng-model="checkbox" />');
 
-      inputElm.triggerHandler('click');
+      inputElm.triggerHandler('$md.click');
       expect(scope.checkbox).toBe(true);
 
-      inputElm.triggerHandler('click');
+      inputElm.triggerHandler('$md.click');
       expect(scope.checkbox).toBe(false);
     });
 
@@ -126,10 +126,10 @@ describe('mdCheckbox', function() {
       scope.$apply("name = 'something else'");
       expect(isChecked(inputElm)).toBe(false);
 
-      inputElm.triggerHandler('click');
+      inputElm.triggerHandler('$md.click');
       expect(scope.name).toEqual('y');
 
-      inputElm.triggerHandler('click');
+      inputElm.triggerHandler('$md.click');
       expect(scope.name).toEqual('n');
     });
 
@@ -158,11 +158,11 @@ describe('mdCheckbox', function() {
     it('should be required if false', function() {
       compileInput('<md-checkbox ng:model="value" required />');
 
-      inputElm.triggerHandler('click');
+      inputElm.triggerHandler('$md.click');
       expect(isChecked(inputElm)).toBe(true);
       expect(inputElm.hasClass('ng-valid')).toBe(true);
 
-      inputElm.triggerHandler('click');
+      inputElm.triggerHandler('$md.click');
       expect(isChecked(inputElm)).toBe(false);
       expect(inputElm.hasClass('ng-invalid')).toBe(true);
     });
