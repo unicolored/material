@@ -1,0 +1,38 @@
+$theme-name: 'gilles';
+// Named color palettes
+$dark: (
+'50': #cbe1f1,
+'100': #93a7bc,
+'200': #626e89,
+'300': #3c455d,
+'400': #253044,
+'500': #182232,
+'600': #131e2c,
+'700': #0f1826,
+'800': #0c1420,
+'900': #080e17,
+'A100': #416e8e,
+'A200': #173f58,
+'A400': #0c3549,
+'A700': #0a2c3f
+);
+$ruby: (
+'50': #ffede9,
+'100': #ffcec6,
+'200': #ff8a7e,
+'300': #ff5a54,
+'400': #fd3e3b,
+'500': #f33534,
+'600': #e82b29,
+'700': #db2120,
+'800': #d01a1a,
+'900': #c00f11,
+'A100': #ff758f,
+'A200': #ff4171,
+'A400': #ff0143,
+'A700': #c10036
+);
+$primary-color-palette: $ruby;  // set the primary color palette for this theme
+//$background-color-base: #333;
+//$checkbox-color-palette: $forest-green; // set the 'forest green' theme for the checkbox only
+$toolbars-color-palette: $dark; // set the 'indigo' theme for the tabs only
